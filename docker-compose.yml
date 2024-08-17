@@ -1,0 +1,24 @@
+version: "3.1"
+
+services:
+  mongo:
+    image: mongo
+    restart: always
+    ports:
+      - "127.0.0.1:27017:27017" # Bind MongoDB to localhost on port 27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mukund
+      MONGO_INITDB_ROOT_PASSWORD: qwertyui
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - "127.0.0.1:8081:8081" # Bind Mongo-Express to localhost on port 8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: mukund
+      ME_CONFIG_MONGODB_ADMINPASSWORD: qwertyui
+      ME_CONFIG_MONGODB_URL: mongodb://mukund:qwertyui@mongo:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: 12345
+      ME_CONFIG_BASICAUTH: true
