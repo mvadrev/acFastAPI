@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, HTTPException, status
 from pymongo import MongoClient, ASCENDING
 import pandas as pd
 from datetime import datetime
@@ -7,9 +7,11 @@ import time
 import threading
 import requests
 import os
+from bson import ObjectId
+
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
-
+from models.CourseCreate import CourseCreate
 origins = [
     "http://localhost",
     "http://localhost:8000",
@@ -142,6 +144,62 @@ async def getAllCourses():
     documents = list(collection.find())
     documents = [convert_id(doc) for doc in documents]
     return documents
+
+def convert_id(doc):
+    """Convert the ObjectId in MongoDB documents to a string."""
+    if "_id" in doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
+
+
+@app.delete("/delete_course/{_id}")
+async def delete_course(_id: str):
+    try:
+        # Validate and convert the _id to ObjectId
+        if not ObjectId.is_valid(_id):
+            raise HTTPException(status_code=400, detail="Invalid ObjectId format")
+        
+        # Convert the string _id to ObjectId
+        object_id = ObjectId(_id)
+  
+        # Find and delete the document
+        result = collection.find_one(ObjectId(_id))
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Course not found")
+
+        return {"detail": "Course deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/create_course", status_code=status.HTTP_201_CREATED)
+def create_course(course: CourseCreate):
+    try:
+        # Convert the Pydantic model to a dictionary
+        course_dict = course.dict()
+
+        # Convert date fields to datetime.datetime
+        course_dict['StartDate'] = datetime.combine(course_dict['StartDate'], datetime.min.time())
+        course_dict['EndDate'] = datetime.combine(course_dict['EndDate'], datetime.min.time())
+
+        # Add a created_at field for TTL index
+        course_dict['created_at'] = datetime.utcnow()
+
+        # Insert the document into the MongoDB collection
+        result = collection.insert_one(course_dict)
+
+        # Convert ObjectId to string
+        course_dict['_id'] = str(result.inserted_id)
+        
+        # Return the inserted course data with the MongoDB generated ID
+        return convert_id(course_dict)
+    except Exception as e:
+        # Handle unexpected errors
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 if __name__ == "__main__":
     import uvicorn
